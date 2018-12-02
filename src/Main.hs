@@ -1,11 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE
 
-import Control.Monad (void)
-import System.Environment as E
-import System.IO as IO
+import           Data.Maybe ( listToMaybe )
+import qualified System.Environment as E
+import qualified Data.ByteString as BS
 
 main :: IO ()
 main = do
   args <- E.getArgs
-  void $ traverse putStrLn args
+  d <- case listToMaybe args of
+    Just filename -> BS.readFile filename
+    Nothing -> BS.getContents
+  BS.putStr d
