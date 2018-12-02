@@ -1,0 +1,28 @@
+cabal-version: 1.12
+
+name:           hexdump
+version:        0.1.0.0
+description:    Read file specified in first argument and outputs it in hexadecimal form
+homepage:       https://github.com/fromjavatohaskell/hexdump#readme
+bug-reports:    https://github.com/fromjavatohaskell/hexdump/issues
+author:         FromJavaToHaskell
+maintainer:     fromjavatohaskell@gmail.com
+copyright:      2018 FromJavaToHaskell
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/fromjavatohaskell/hexdump
+
+executable hexdump
+  main-is: Main.hs
+  hs-source-dirs:
+      src
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
