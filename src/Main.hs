@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE
+-- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE-MIT
 
 import           Data.Maybe ( listToMaybe )
 import qualified System.Environment as E

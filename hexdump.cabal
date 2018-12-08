@@ -9,7 +9,7 @@ author:         FromJavaToHaskell
 maintainer:     fromjavatohaskell@gmail.com
 copyright:      2018 FromJavaToHaskell
 license:        MIT
-license-file:   LICENSE
+license-file:   LICENSE-MIT
 build-type:     Simple
 extra-source-files:
     README.md
