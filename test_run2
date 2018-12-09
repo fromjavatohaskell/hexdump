@@ -1,0 +1,2 @@
+#!/bin/sh
+./alt/hexdump data/rand01
