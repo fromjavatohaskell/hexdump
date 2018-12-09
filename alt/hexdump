@@ -1,0 +1,2 @@
+#!/bin/sh
+od -A x -t x1z -v "$@"
