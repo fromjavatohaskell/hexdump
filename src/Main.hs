@@ -24,7 +24,7 @@ initialChunk x = f $ BSL.splitAt chunkSize x
 
 nextChunk :: Chunk -> Chunk
 nextChunk (Chunk ne offset head rest) = f $ BSL.splitAt chunkSize rest
-  where f (a, b) = Chunk (ne && prevNonEmpty) (offset + fromIntegral (BSL.length head)) a b 
+  where f (a, b) = Chunk (ne && prevNonEmpty) (offset + BSL.length head) a b 
         prevNonEmpty = not $ BSL.null head
 
 notEmpty :: Chunk -> Bool
