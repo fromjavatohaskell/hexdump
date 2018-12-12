@@ -5,9 +5,11 @@
 import           Data.Int ( Int64 )
 import           Data.ByteString.Lazy ( ByteString )
 import           Data.ByteString.Builder ( Builder )
+import           Data.Word ( Word8 )
 import           Data.Maybe ( listToMaybe )
 import           Control.Monad ( void )
 import qualified System.Environment as E
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL hiding (scanl')
 import qualified Data.ByteString.Builder as B
 import           System.IO ( BufferMode(..) )
@@ -33,8 +35,45 @@ notEmpty (Chunk ne _ head _) = ne
 split :: ByteString -> [Chunk]
 split x = takeWhile notEmpty $ iterate nextChunk $ initialChunk x
 
+
+filterPrintable :: Word8 -> Word8
+filterPrintable x
+  | x >= 0x20 && x <=0x7e = x
+  | otherwise = 0x2e
+
+buildOffset :: Int64 -> Builder
+buildOffset offset 
+  | offset < 0x7FFFFF = B.int64HexFixed offset
+  | otherwise = B.int64HexFixed offset
+
+hex :: ByteString -> Builder
+hex chunk = BSL.foldr singleSymbol mempty chunk
+  where singleSymbol x rest = B.word8HexFixed x <> space <> rest
+
+pad :: Int64 -> Builder
+pad chunkLength
+  | chunkLength >= chunkSize = mempty
+  | otherwise = B.byteString $ BS.replicate (fromInteger $ toInteger $ 3 * (chunkSize - chunkLength)) 0x20
+
+buildChunk :: ByteString -> Builder
+buildChunk chunk
+  | not $ BSL.null chunk = 
+    hex chunk <>
+    pad (BSL.length chunk) <>
+    space <>
+    B.char8 '>' <>
+    B.lazyByteString (BSL.map filterPrintable chunk) <>
+    B.char8 '<'
+  | otherwise = mempty
+
+space :: Builder
+space = B.char8 ' '
+
+newLine :: Builder
+newLine = B.char8 '\n'
+
 toBuilder :: Chunk -> Builder
-toBuilder (Chunk _ offset chunk _) = B.int64HexFixed offset <> B.char8 ' ' <> B.lazyByteStringHex chunk <> B.char8 '\n'
+toBuilder (Chunk _ offset chunk _) = buildOffset offset <> space <> buildChunk chunk <> newLine
 
 main :: IO ()
 main = do
