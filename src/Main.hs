@@ -8,6 +8,7 @@ import           Data.ByteString.Lazy ( ByteString )
 import           Data.ByteString.Builder ( Builder )
 import           Data.Word ( Word8 )
 import           Data.Maybe ( listToMaybe )
+import           Data.Foldable ( traverse_ )
 import           Control.Monad ( void )
 import qualified System.Environment as E
 import qualified Data.ByteString as BS
@@ -16,26 +17,16 @@ import qualified Data.ByteString.Builder as B
 import           System.IO ( BufferMode(..) )
 import qualified System.IO as IO
 
-data Chunk = Chunk !Bool {-# UNPACK #-} !Int64 !ByteString !ByteString
+data Chunk = Chunk {-# UNPACK #-} !Int64 !ByteString
 
 chunkSize :: Int64
 chunkSize = 16
 
-initialChunk :: ByteString -> Chunk
-initialChunk x = f $ BSL.splitAt chunkSize x
-  where f (a, b) = Chunk True 0 a b
-
-nextChunk :: Chunk -> Chunk
-nextChunk (Chunk ne offset head rest) = f $ BSL.splitAt chunkSize rest
-  where f (a, b) = Chunk (ne && prevNonEmpty) (offset + BSL.length head) a b 
-        prevNonEmpty = not $ BSL.null head
-
-notEmpty :: Chunk -> Bool
-notEmpty (Chunk ne _ head _) = ne
-
-split :: ByteString -> [Chunk]
-split x = takeWhile notEmpty $ iterate nextChunk $ initialChunk x
-
+chunked :: Int64 -> ByteString -> [Chunk]
+chunked offset bs = if BSL.null bs
+  then [Chunk offset bs]
+  else case BSL.splitAt chunkSize bs of
+    (as, zs) -> Chunk offset as : chunked (offset + BSL.length as) zs
 
 filterPrintable :: Word8 -> Word8
 filterPrintable x
@@ -55,7 +46,7 @@ hex chunk = BSL.foldr singleSymbol mempty chunk
 pad :: Int64 -> Builder
 pad chunkLength
   | chunkLength >= chunkSize = mempty
-  | otherwise = B.byteString $ BS.replicate (fromInteger $ toInteger $ 3 * (chunkSize - chunkLength)) 0x20
+  | otherwise = B.byteString $ BS.replicate (fromIntegral $ 3 * (chunkSize - chunkLength)) 0x20
 
 buildChunk :: ByteString -> Builder
 buildChunk chunk
@@ -75,7 +66,7 @@ newLine :: Builder
 newLine = B.char8 '\n'
 
 toBuilder :: Chunk -> Builder
-toBuilder (Chunk _ offset chunk _) = buildOffset offset <> space <> buildChunk chunk <> newLine
+toBuilder (Chunk offset chunk ) = buildOffset offset <> space <> buildChunk chunk <> newLine
 
 main :: IO ()
 main = do
@@ -83,5 +74,5 @@ main = do
   d <- case listToMaybe args of
     Just filename -> BSL.readFile filename
     Nothing -> BSL.getContents
-  IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 16
-  void $ traverse (B.hPutBuilder IO.stdout . toBuilder) (split d)
+  IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
+  traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 d)
