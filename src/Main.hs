@@ -3,6 +3,7 @@
 -- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE-MIT
 
 import           Data.Int ( Int64 )
+import           Data.Bits ( shiftR )
 import           Data.ByteString.Lazy ( ByteString )
 import           Data.ByteString.Builder ( Builder )
 import           Data.Word ( Word8 )
@@ -43,7 +44,8 @@ filterPrintable x
 
 buildOffset :: Int64 -> Builder
 buildOffset offset 
-  | offset < 0x7FFFFF = B.int64HexFixed offset
+  | offset < 0xFFFFFF = (B.int8HexFixed $ fromIntegral $ offset `shiftR` 16) <>
+    (B.int16HexFixed $ fromIntegral offset)
   | otherwise = B.int64HexFixed offset
 
 hex :: ByteString -> Builder
