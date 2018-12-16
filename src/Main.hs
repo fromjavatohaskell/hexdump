@@ -11,7 +11,6 @@ import           Data.Maybe                     ( listToMaybe )
 import           Data.Foldable                  ( traverse_ )
 import           Control.Monad                  ( void )
 import qualified System.Environment            as E
-import qualified Data.ByteString               as BS
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Data.ByteString.Builder       as B
 import           System.IO                      ( BufferMode(..) )
@@ -47,8 +46,8 @@ hex chunk = BSL.foldr singleSymbol mempty chunk
 pad :: Int64 -> Builder
 pad chunkLength
   | chunkLength >= chunkSize = mempty
-  | otherwise = B.byteString
-  $ BS.replicate (fromIntegral $ 3 * (chunkSize - chunkLength)) 0x20
+  | otherwise = foldr mappend mempty $ replicate padSize space
+     where padSize = fromIntegral $ 3 * (chunkSize - chunkLength)
 
 buildChunk :: ByteString -> Builder
 buildChunk chunk
