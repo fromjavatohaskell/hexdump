@@ -24,6 +24,7 @@ import           System.IO                      ( BufferMode(..) )
 import qualified System.IO                     as IO
 
 data Chunk = Chunk {-# UNPACK #-} !Int64 !ByteString
+--data Chunk = Chunk Int64 ByteString
 
 chunkSize :: Int64
 chunkSize = 16
@@ -42,18 +43,10 @@ uncheckedIShiftRL :: Int64 -> Int# -> Int64
 uncheckedIShiftRL (I64# n) i = I64# (uncheckedIShiftRL# n i)
 
 buildOffset :: Int64 -> Builder
-buildOffset offset
-  | offset < 0xFFFFFF
-  = (B.int8HexFixed $ fromIntegral $ offset `uncheckedIShiftRL` 16#)
-    <> (B.int16HexFixed $ fromIntegral offset)
-  | otherwise
-  = B.int64HexFixed offset
-
-buildOffset' :: Int64 -> Builder
-buildOffset' offset = buildOffset'' 0 offset
+buildOffset offset = buildOffset' 0 offset
   where
-    buildOffset'' counter offset
-      | counter < 6 || offset > 0 = buildOffset'' (counter + 1) (uncheckedIShiftRL offset 4#)
+    buildOffset' counter offset
+      | counter < 6 || offset > 0 = buildOffset' (counter + 1) (uncheckedIShiftRL offset 4#)
         <> B.word8 (hexEncodeLowerNibble offset)
       | otherwise = mempty
 
@@ -102,7 +95,7 @@ newLine = B.char8 '\n'
 
 toBuilder :: Chunk -> Builder
 toBuilder (Chunk offset chunk) =
-  buildOffset' offset <> buildChunk chunk <> newLine
+  buildOffset offset <> buildChunk chunk <> newLine
 
 main :: IO ()
 main = do
@@ -112,14 +105,3 @@ main = do
     Nothing       -> BSL.getContents
   IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
   traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 d)
-  --B.hPutBuilder IO.stdout $ buildOffset 0x0 <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset 0x1 <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset 0x12 <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset 0x123 <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset 0x1234 <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset 0x12345 <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset' 0x12345 <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset 0xFFFFFF <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset 0xFFFFFF <> newLine
-  --B.hPutBuilder IO.stdout $ B.word8 (hexEncodeLowerNibble 0x12345) <> newLine
-  --B.hPutBuilder IO.stdout $ buildOffset 0x1000000 <> newLine
