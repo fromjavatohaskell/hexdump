@@ -1,16 +1,22 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, MagicHash #-}
 
 -- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE-MIT
 
-import           Data.Int                       ( Int64 )
-import           Data.Bits                      ( shiftR )
+import           GHC.Int                        ( Int64(..), Int8 )
+import           Data.Bits                      ( shiftR , (.&.))
+import           GHC.Prim                       ( Int#, uncheckedIShiftRL# )
 import           Data.ByteString.Lazy           ( ByteString )
 import           Data.ByteString.Builder        ( Builder )
 import           Data.Word                      ( Word8 )
 import           Data.Maybe                     ( listToMaybe )
 import           Data.Foldable                  ( traverse_ )
 import           Control.Monad                  ( void )
+import           Foreign                        ( ForeignPtr(..) )
+import           Foreign.Storable               ( peekElemOff )
+import           Foreign.ForeignPtr.Unsafe      ( unsafeForeignPtrToPtr )
 import qualified System.Environment            as E
+import qualified Data.ByteString               as BS
+import qualified Data.ByteString.Internal      as BS
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Data.ByteString.Builder       as B
 import           System.IO                      ( BufferMode(..) )
@@ -31,13 +37,35 @@ filterPrintable :: Word8 -> Word8
 filterPrintable x | x >= 0x20 && x <= 0x7e = x
                   | otherwise              = 0x2e
 
+uncheckedIShiftRL :: Int64 -> Int# -> Int64
+uncheckedIShiftRL (I64# n) i = I64# (uncheckedIShiftRL# n i)
+
 buildOffset :: Int64 -> Builder
 buildOffset offset
   | offset < 0xFFFFFF
-  = (B.int8HexFixed $ fromIntegral $ offset `shiftR` 16)
+  = (B.int8HexFixed $ fromIntegral $ offset `uncheckedIShiftRL` 16#)
     <> (B.int16HexFixed $ fromIntegral offset)
   | otherwise
   = B.int64HexFixed offset
+
+toBytes :: Int64 -> [Int8]
+toBytes = undefined
+
+newtype EncodingTable = EncodingTable (ForeignPtr Word8)
+
+tableFromList :: [Word8] -> EncodingTable
+tableFromList xs = case BS.pack xs of BS.PS fp _ _ -> EncodingTable fp
+
+unsafeIndex :: EncodingTable -> Int -> IO Word8
+unsafeIndex (EncodingTable table) = peekElemOff (unsafeForeignPtrToPtr table)
+
+lowerAlphabet :: EncodingTable
+lowerAlphabet =
+    tableFromList $ map (fromIntegral . fromEnum) $ ['0'..'9'] ++ ['a'..'f']
+
+hexEncodeLowerNibble :: Int -> IO Word8
+hexEncodeLowerNibble x = unsafeIndex lowerAlphabet $ x .&. 0xF
+
 
 hex :: ByteString -> Builder
 hex chunk = BSL.foldr singleSymbol mempty chunk
@@ -79,3 +107,14 @@ main = do
     Nothing       -> BSL.getContents
   IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
   traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 d)
+  B.hPutBuilder IO.stdout $ buildOffset 0x0 <> newLine
+  B.hPutBuilder IO.stdout $ buildOffset 0x1 <> newLine
+  B.hPutBuilder IO.stdout $ buildOffset 0x12 <> newLine
+  B.hPutBuilder IO.stdout $ buildOffset 0x123 <> newLine
+  B.hPutBuilder IO.stdout $ buildOffset 0x1234 <> newLine
+  B.hPutBuilder IO.stdout $ buildOffset 0x12345 <> newLine
+  B.hPutBuilder IO.stdout $ buildOffset 0xFFFFFF <> newLine
+  nibble <- hexEncodeLowerNibble 0x12345
+  B.hPutBuilder IO.stdout $ B.word8 nibble
+  B.hPutBuilder IO.stdout newLine
+  B.hPutBuilder IO.stdout $ buildOffset 0x1000000 <> newLine
