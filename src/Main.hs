@@ -49,8 +49,13 @@ buildOffset offset
   | otherwise
   = B.int64HexFixed offset
 
-toBytes :: Int64 -> [Int8]
-toBytes = undefined
+buildOffset' :: Int64 -> Builder
+buildOffset' offset = buildOffset'' 0 offset
+  where
+    buildOffset'' counter offset
+      | counter < 6 || offset > 0 = buildOffset'' (counter + 1) (uncheckedIShiftRL offset 4#)
+        <> B.word8 (hexEncodeLowerNibble offset)
+      | otherwise = mempty
 
 newtype EncodingTable = EncodingTable (ForeignPtr Word8)
 
@@ -61,12 +66,10 @@ unsafeIndex :: EncodingTable -> Int -> IO Word8
 unsafeIndex (EncodingTable table) = peekElemOff (unsafeForeignPtrToPtr table)
 
 lowerAlphabet :: EncodingTable
-lowerAlphabet =
-    tableFromList $ map (fromIntegral . fromEnum) $ ['0'..'9'] ++ ['a'..'f']
+lowerAlphabet = tableFromList $ map (fromIntegral . fromEnum) $ ['0'..'9'] ++ ['a'..'f']
 
-hexEncodeLowerNibble :: Int -> Word8
-hexEncodeLowerNibble x = unsafePerformIO $ unsafeIndex lowerAlphabet $ x .&. 0xF
-
+hexEncodeLowerNibble :: Int64 -> Word8
+hexEncodeLowerNibble x = unsafePerformIO $ unsafeIndex lowerAlphabet $ fromIntegral $ x .&. 0xF
 
 hex :: ByteString -> Builder
 hex chunk = BSL.foldr singleSymbol mempty chunk
@@ -81,7 +84,8 @@ pad chunkLength
 buildChunk :: ByteString -> Builder
 buildChunk chunk
   | not $ BSL.null chunk
-  = hex chunk
+  = space
+    <> hex chunk
     <> pad (BSL.length chunk)
     <> space
     <> B.char8 '>'
@@ -98,7 +102,7 @@ newLine = B.char8 '\n'
 
 toBuilder :: Chunk -> Builder
 toBuilder (Chunk offset chunk) =
-  buildOffset offset <> space <> buildChunk chunk <> newLine
+  buildOffset' offset <> buildChunk chunk <> newLine
 
 main :: IO ()
 main = do
@@ -108,12 +112,14 @@ main = do
     Nothing       -> BSL.getContents
   IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
   traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 d)
-  B.hPutBuilder IO.stdout $ buildOffset 0x0 <> newLine
-  B.hPutBuilder IO.stdout $ buildOffset 0x1 <> newLine
-  B.hPutBuilder IO.stdout $ buildOffset 0x12 <> newLine
-  B.hPutBuilder IO.stdout $ buildOffset 0x123 <> newLine
-  B.hPutBuilder IO.stdout $ buildOffset 0x1234 <> newLine
-  B.hPutBuilder IO.stdout $ buildOffset 0x12345 <> newLine
-  B.hPutBuilder IO.stdout $ buildOffset 0xFFFFFF <> newLine
-  B.hPutBuilder IO.stdout $ B.word8 (hexEncodeLowerNibble 0x12345) <> newLine
-  B.hPutBuilder IO.stdout $ buildOffset 0x1000000 <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0x0 <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0x1 <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0x12 <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0x123 <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0x1234 <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0x12345 <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset' 0x12345 <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0xFFFFFF <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0xFFFFFF <> newLine
+  --B.hPutBuilder IO.stdout $ B.word8 (hexEncodeLowerNibble 0x12345) <> newLine
+  --B.hPutBuilder IO.stdout $ buildOffset 0x1000000 <> newLine
