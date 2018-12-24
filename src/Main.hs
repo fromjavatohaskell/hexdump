@@ -14,6 +14,7 @@ import           Control.Monad                  ( void )
 import           Foreign                        ( ForeignPtr(..) )
 import           Foreign.Storable               ( peekElemOff )
 import           Foreign.ForeignPtr.Unsafe      ( unsafeForeignPtrToPtr )
+import           System.IO.Unsafe               ( unsafePerformIO )
 import qualified System.Environment            as E
 import qualified Data.ByteString               as BS
 import qualified Data.ByteString.Internal      as BS
@@ -63,8 +64,8 @@ lowerAlphabet :: EncodingTable
 lowerAlphabet =
     tableFromList $ map (fromIntegral . fromEnum) $ ['0'..'9'] ++ ['a'..'f']
 
-hexEncodeLowerNibble :: Int -> IO Word8
-hexEncodeLowerNibble x = unsafeIndex lowerAlphabet $ x .&. 0xF
+hexEncodeLowerNibble :: Int -> Word8
+hexEncodeLowerNibble x = unsafePerformIO $ unsafeIndex lowerAlphabet $ x .&. 0xF
 
 
 hex :: ByteString -> Builder
@@ -114,7 +115,5 @@ main = do
   B.hPutBuilder IO.stdout $ buildOffset 0x1234 <> newLine
   B.hPutBuilder IO.stdout $ buildOffset 0x12345 <> newLine
   B.hPutBuilder IO.stdout $ buildOffset 0xFFFFFF <> newLine
-  nibble <- hexEncodeLowerNibble 0x12345
-  B.hPutBuilder IO.stdout $ B.word8 nibble
-  B.hPutBuilder IO.stdout newLine
+  B.hPutBuilder IO.stdout $ B.word8 (hexEncodeLowerNibble 0x12345) <> newLine
   B.hPutBuilder IO.stdout $ buildOffset 0x1000000 <> newLine
