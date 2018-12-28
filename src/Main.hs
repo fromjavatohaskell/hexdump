@@ -85,21 +85,13 @@ newLine :: Builder
 newLine = B.char8 '\n'
 
 toBuilder :: Chunk -> Builder
-toBuilder (Chunk offset chunk) =
-  buildOffset offset <> buildChunk chunk <> newLine
-
-setupOutputBuffering :: IO ()
-setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
-
-getFilename :: IO (Maybe String)
-getFilename = fmap listToMaybe E.getArgs
-
-getData :: Maybe String -> IO ByteString
-getData (Just filename) = BSL.readFile filename
-getData Nothing       = BSL.getContents
-
-printHex :: ByteString -> IO ()
-printHex dataIn = traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 dataIn)
+toBuilder (Chunk offset chunk) = buildOffset offset <> buildChunk chunk <> newLine
 
 main :: IO ()
 main = setupOutputBuffering >> getFilename >>= getData >>= printHex
+  where
+    setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
+    getFilename = fmap listToMaybe E.getArgs
+    getData (Just filename) = BSL.readFile filename
+    getData Nothing = BSL.getContents
+    printHex dataIn = traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 dataIn)
