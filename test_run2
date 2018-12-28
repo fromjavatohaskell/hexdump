@@ -1,2 +1,3 @@
 #!/bin/sh
 ./alt/hexdump data/rand01
+./alt/hexdump data/rand01 | md5sum

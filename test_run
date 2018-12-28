@@ -1,2 +1,3 @@
 #!/bin/sh
 stack run hexdump data/rand01
+stack run hexdump data/rand01 | md5sum
