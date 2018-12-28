@@ -56,7 +56,7 @@ hex chunk = BSL.foldr singleSymbol mempty chunk
 pad :: Int64 -> Builder
 pad chunkLength
   | chunkLength >= chunkSize = mempty
-  | otherwise = foldr mappend mempty $ replicate padSize space
+  | otherwise = mconcat $ replicate padSize space
      where padSize = fromIntegral $ 3 * (chunkSize - chunkLength)
 
 buildChunk :: ByteString -> Builder
