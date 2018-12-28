@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, MagicHash, LambdaCase #-}
+{-# LANGUAGE OverloadedStrings, MagicHash, BangPatterns #-}
 
 -- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE-MIT
 
@@ -22,7 +22,7 @@ chunkSize :: Int64
 chunkSize = 16
 
 chunked :: Int64 -> ByteString -> [Chunk]
-chunked offset bs = if BSL.null bs
+chunked !offset bs = if BSL.null bs
   then [Chunk offset bs]
   else case BSL.splitAt chunkSize bs of
     (as, zs) -> Chunk offset as : chunked (offset + BSL.length as) zs
@@ -40,12 +40,12 @@ hexEncodeLowerNibble x =
     charLetterOffset = fromIntegral $ fromEnum 'a' - 0xa
 
 buildOffset :: Int64 -> Builder
-buildOffset offset = buildOffset' (offset >>> 24#)
+buildOffset !offset = buildOffset' (offset >>> 24#)
   <> (B.int8HexFixed $ fromIntegral $ (offset >>> 16#))
   <> (B.int16HexFixed $ fromIntegral offset)
   where 
     (I64# n) >>> i = I64# (uncheckedIShiftRL# n i)
-    buildOffset' offset
+    buildOffset' !offset
       | offset /= 0 = buildOffset' (offset >>> 4#) <> B.word8 (hexEncodeLowerNibble offset)
       | otherwise = mempty
 
@@ -66,11 +66,17 @@ buildChunk chunk
     <> hex chunk
     <> pad (BSL.length chunk)
     <> space
-    <> B.char8 '>'
+    <> charBiggerThen
     <> B.lazyByteString (BSL.map filterPrintable chunk)
-    <> B.char8 '<'
+    <> charLessThen
   | otherwise
   = mempty
+
+charBiggerThen :: Builder
+charBiggerThen = B.char8 '>'
+
+charLessThen :: Builder
+charLessThen = B.char8 '<'
 
 space :: Builder
 space = B.char8 ' '
@@ -82,10 +88,18 @@ toBuilder :: Chunk -> Builder
 toBuilder (Chunk offset chunk) =
   buildOffset offset <> buildChunk chunk <> newLine
 
+setupOutputBuffering :: IO ()
+setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
+
+getFilename :: IO (Maybe String)
+getFilename = fmap listToMaybe E.getArgs
+
+getData :: Maybe String -> IO ByteString
+getData (Just filename) = BSL.readFile filename
+getData Nothing       = BSL.getContents
+
+printHex :: ByteString -> IO ()
+printHex dataIn = traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 dataIn)
+
 main :: IO ()
-main = do
-  IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
-  dataIn <- fmap listToMaybe E.getArgs >>= \case
-    Just filename -> BSL.readFile filename
-    Nothing       -> BSL.getContents
-  traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 dataIn)
+main = setupOutputBuffering >> getFilename >>= getData >>= printHex
