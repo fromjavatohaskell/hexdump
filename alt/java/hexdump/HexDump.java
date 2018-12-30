@@ -71,6 +71,7 @@ public class HexDump {
 						outputBuffer[outIndex++] = ' ';
 					}
 				}
+				outputBuffer[outIndex++] = ' ';
 				outputBuffer[outIndex++] = '>';
 				for(int index = 0; index < length; ++index) {
 					outputBuffer[outIndex++] = asciiFilter[chunk[index] & 0xFF];
