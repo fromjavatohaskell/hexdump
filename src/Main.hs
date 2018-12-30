@@ -10,6 +10,8 @@ import           Data.ByteString.Builder        ( Builder )
 import           Data.Word                      ( Word8 )
 import           Data.Maybe                     ( listToMaybe )
 import           Data.Foldable                  ( traverse_ )
+import           Data.Foldable                  ( sequenceA_ )
+import           Control.Monad                  ( join )
 import qualified System.Environment            as E
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Data.ByteString.Builder       as B
@@ -90,7 +92,7 @@ toBuilder (Chunk offset chunk) = buildOffset offset <> buildChunk chunk <> newLi
 main :: IO ()
 main = setupOutputBuffering >> getFilename >>= getData >>= printHex
   where
-    setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 32
+    setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 64
     getFilename = fmap listToMaybe E.getArgs
     getData (Just filename) = BSL.readFile filename
     getData Nothing = BSL.getContents
