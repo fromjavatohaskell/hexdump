@@ -10,7 +10,6 @@ import           Data.ByteString.Builder        ( Builder )
 import           Data.Word                      ( Word8 )
 import           Data.Maybe                     ( listToMaybe )
 import           Data.Foldable                  ( traverse_ )
-import           Control.Monad                  ( join )
 import qualified System.Environment            as E
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Data.ByteString.Builder       as B
