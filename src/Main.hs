@@ -2,15 +2,14 @@
 
 -- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE-MIT
 
-import           GHC.Int                        ( Int64(..), Int8 )
-import           Data.Bits                      ( shiftR , (.&.))
-import           GHC.Prim                       ( Int#, uncheckedIShiftRL# )
+import           GHC.Int                        ( Int64(..) )
+import           Data.Bits                      ( (.&.) )
+import           GHC.Prim                       ( uncheckedIShiftRL# )
 import           Data.ByteString.Lazy           ( ByteString )
 import           Data.ByteString.Builder        ( Builder )
 import           Data.Word                      ( Word8 )
 import           Data.Maybe                     ( listToMaybe )
 import           Data.Foldable                  ( traverse_ )
-import           Data.Foldable                  ( sequenceA_ )
 import           Control.Monad                  ( join )
 import qualified System.Environment            as E
 import qualified Data.ByteString.Lazy          as BSL
