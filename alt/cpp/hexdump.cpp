@@ -9,7 +9,7 @@ const int MAX_BYTE{256};
 
 int main(int argc, char *argv[]) {
 
-  char hexadecimal[16] {'0','1','2','3','4','5','6','7','8','9', 'a','b','c','d','e','f' };
+  char hexadecimal[16] {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f' };
 
   char hexadecimalByte[MAX_BYTE*2];
   for(int index = 0; index < MAX_BYTE; ++index) {
@@ -32,16 +32,18 @@ int main(int argc, char *argv[]) {
   char chunk[CHUNK_SIZE];
   char outputBuffer[1024];
 
-
   long offset = 0;
   while(true) {
+    // init output buffer
     int outIndex = 0;
+
+    // encode offset
     long offsetEncode = offset;
     for(int index = 0; index < 6 || offsetEncode != 0; ++index ) {
        outputBuffer[outIndex++] = hexadecimal[(int)offsetEncode & 0xF];
        offsetEncode = offsetEncode >> 4;
     }
-    // reverse
+    // reverse encoded offset
     int middle = outIndex/2;
     for(int index = 0; index < middle; ++index){
        int index2 = outIndex - index - 1;
@@ -49,7 +51,6 @@ int main(int argc, char *argv[]) {
        outputBuffer[index] = outputBuffer[index2];
        outputBuffer[index2] = val;
     }
-
 
     in.read(chunk, CHUNK_SIZE);
     int length = in.gcount();
@@ -85,7 +86,6 @@ int main(int argc, char *argv[]) {
     outputBuffer[outIndex++] = '\n';
     std::cout.write(outputBuffer, outIndex);
     offset = offset + length;
-
   }
 
 }
