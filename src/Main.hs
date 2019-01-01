@@ -1,4 +1,6 @@
-{-# LANGUAGE OverloadedStrings, MagicHash, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MagicHash #-}
 
 -- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE-MIT
 
