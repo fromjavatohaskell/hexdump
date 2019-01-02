@@ -1,3 +1,4 @@
 #!/bin/sh
 rm hexdump
+#g++ -fsanitize=undefined -O -o hexdump hexdump.cpp
 g++ -O -o hexdump hexdump.cpp

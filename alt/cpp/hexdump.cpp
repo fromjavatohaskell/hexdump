@@ -8,16 +8,16 @@ const int CHUNK_SIZE {16};
 const int MAX_BYTE {256};
 
 typedef struct HEXA_BYTE_ {
-        uint8_t c[2];
+  uint8_t c[2];
 } HEXA_BYTE;
 
 int main(int argc, char *argv[]) {
 
   char hexadecimal[16] {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
 
-  uint16_t hexadecimalByte[MAX_BYTE];
+  HEXA_BYTE hexadecimalByte[MAX_BYTE];
   for(int index = 0; index < MAX_BYTE; ++index) {
-    HEXA_BYTE *hexa_byte = (HEXA_BYTE *)&hexadecimalByte[index];
+    HEXA_BYTE *hexa_byte = &hexadecimalByte[index];
     hexa_byte->c[0] = hexadecimal[(index >> 4) & 0xF];
     hexa_byte->c[1] = hexadecimal[index & 0xF];
   }
@@ -45,9 +45,9 @@ int main(int argc, char *argv[]) {
 
     // encode LSB 3 bytes
     const int nibbleMask {0xFF};
-    *((uint16_t *)&outputBuffer[endOffset - 2]) = hexadecimalByte[offset & nibbleMask];
-    *((uint16_t *)&outputBuffer[endOffset - 4]) = hexadecimalByte[(offset >> 8) & nibbleMask];
-    *((uint16_t *)&outputBuffer[endOffset - 6]) = hexadecimalByte[(offset >> 16) & nibbleMask];
+    *((HEXA_BYTE *)&outputBuffer[endOffset - 2]) = hexadecimalByte[offset & nibbleMask];
+    *((HEXA_BYTE *)&outputBuffer[endOffset - 4]) = hexadecimalByte[(offset >> 8) & nibbleMask];
+    *((HEXA_BYTE *)&outputBuffer[endOffset - 6]) = hexadecimalByte[(offset >> 16) & nibbleMask];
 
     // encode remainder - stop encoding when remainder is 0 and remember startIndex
     int startIndex {endOffset - 6};
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
 
     // encode chunk
     for(int index = 0; index < length; ++index) {
-      *((uint16_t *)&outputBuffer[outIndex]) = hexadecimalByte[(uint8_t)chunk[index]];
+      *((HEXA_BYTE *)&outputBuffer[outIndex]) = hexadecimalByte[(uint8_t)chunk[index]];
       outIndex = outIndex + 2;
       outputBuffer[outIndex++] = ' ';
     } 
