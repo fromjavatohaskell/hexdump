@@ -17,9 +17,9 @@ int main(int argc, char *argv[]) {
 
   HEXA_BYTE hexadecimalByte[MAX_BYTE];
   for(int index = 0; index < MAX_BYTE; ++index) {
-    HEXA_BYTE *hexa_byte = &hexadecimalByte[index];
-    hexa_byte->c[0] = hexadecimal[(index >> 4) & 0xF];
-    hexa_byte->c[1] = hexadecimal[index & 0xF];
+    uint8_t *c = hexadecimalByte[index].c;
+    c[0] = hexadecimal[(index >> 4) & 0xF];
+    c[1] = hexadecimal[index & 0xF];
   }
 
   char asciiFilter[MAX_BYTE];
