@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
     outputBuffer[outIndex++] = ' ';
     outputBuffer[outIndex++] = '>';
     for(int index = 0; index < length; ++index) {
-      outputBuffer[outIndex++] = asciiFilter[chunk[index] & 0xFF];
+      outputBuffer[outIndex++] = asciiFilter[(uint8_t)chunk[index]];
     }
     outputBuffer[outIndex++] = '<';
 
