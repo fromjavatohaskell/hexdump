@@ -13,7 +13,7 @@ typedef struct HEXA_BYTE_ {
 
 int main(int argc, char *argv[]) {
 
-  char hexadecimal[16] {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+  const char hexadecimal[16] {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
 
   HEXA_BYTE hexadecimalByte[MAX_BYTE];
   for(int index = 0; index < MAX_BYTE; ++index) {
