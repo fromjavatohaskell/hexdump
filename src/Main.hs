@@ -24,7 +24,7 @@ chunkSize :: Int64
 chunkSize = 16
 
 chunked :: Int64 -> ByteString -> [Chunk]
-chunked offset bs = if BSL.null bs
+chunked offset bs = {-# SCC "chunked" #-} if BSL.null bs
   then [Chunk offset bs]
   else case BSL.splitAt chunkSize bs of
     (as, zs) -> Chunk offset as : (let offset' = offset + BSL.length as in 
@@ -35,7 +35,7 @@ filterPrintable x | x >= 0x20 && x <= 0x7e = x
                   | otherwise              = 0x2e
 
 hexEncodeLowerNibble :: Int64 -> Word8
-hexEncodeLowerNibble x = 
+hexEncodeLowerNibble x = {-# SCC "hexEncode" #-}
   let nibble = fromIntegral $ x .&. 0xF in
   if nibble < 0xa then (charNumberOffset + nibble) else (charLetterOffset + nibble)
   where
@@ -43,7 +43,7 @@ hexEncodeLowerNibble x =
     charLetterOffset = fromIntegral $ fromEnum 'a' - 0xa
 
 buildOffset :: Int64 -> Builder
-buildOffset offset = buildOffset' (offset >>> 24#)
+buildOffset offset = {-# SCC "buildOffset" #-} buildOffset' (offset >>> 24#)
   <> (B.int8HexFixed $ fromIntegral $ (offset >>> 16#))
   <> (B.int16HexFixed $ fromIntegral offset)
   where 
@@ -53,7 +53,7 @@ buildOffset offset = buildOffset' (offset >>> 24#)
       | otherwise = mempty
 
 hex :: ByteString -> Builder
-hex chunk = BSL.foldr singleSymbol mempty chunk
+hex chunk = {-# SCC "hexChunk" #-} BSL.foldr singleSymbol mempty chunk
   where singleSymbol x rest = B.word8HexFixed x <> space <> rest
 
 pad :: Int64 -> Builder
@@ -65,7 +65,7 @@ pad chunkLength
 buildChunk :: ByteString -> Builder
 buildChunk chunk
   | not $ BSL.null chunk
-  = space
+  = {-# SCC "buildChunk" #-} space
     <> hex chunk
     <> pad (BSL.length chunk)
     <> space
@@ -88,13 +88,17 @@ newLine :: Builder
 newLine = B.char8 '\n'
 
 toBuilder :: Chunk -> Builder
-toBuilder (Chunk offset chunk) = buildOffset offset <> buildChunk chunk <> newLine
+toBuilder (Chunk offset chunk) = {-# SCC "toBuilder" #-} buildOffset offset <> buildChunk chunk <> newLine
+
+getData :: Maybe String -> IO ByteString
+getData (Just filename) = {-# SCC "getData" #-} BSL.readFile filename
+getData Nothing = {-# SCC "getData" #-} BSL.getContents
+
+printHex :: ByteString -> IO ()
+printHex dataIn = {-# SCC "printHex" #-} traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 dataIn)
 
 main :: IO ()
 main = setupOutputBuffering >> getFilename >>= getData >>= printHex
   where
     setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 64
     getFilename = fmap listToMaybe E.getArgs
-    getData (Just filename) = BSL.readFile filename
-    getData Nothing = BSL.getContents
-    printHex dataIn = traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 dataIn)
