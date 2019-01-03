@@ -67,17 +67,55 @@ int main(int argc, char *argv[]) {
     
     outputBuffer[outIndex++] = ' ';
 
-    // encode chunk
-    for(int index = 0; index < length; ++index) {
-      *((HEXA_BYTE *)&outputBuffer[outIndex]) = hexadecimalByte[(uint8_t)chunk[index]];
-      outIndex = outIndex + 2;
-      outputBuffer[outIndex++] = ' ';
-    } 
-    // pad last chunk
-    if(length < CHUNK_SIZE) {
-      int padBytes = (CHUNK_SIZE - length) * 3;
-      for(int index = 0; index < padBytes; ++index) {
+
+    if((CHUNK_SIZE == 16) && (length == CHUNK_SIZE)) {
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*0]) = hexadecimalByte[(uint8_t)chunk[0]];
+       outputBuffer[outIndex+3*0+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*1]) = hexadecimalByte[(uint8_t)chunk[1]];
+       outputBuffer[outIndex+3*1+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*2]) = hexadecimalByte[(uint8_t)chunk[2]];
+       outputBuffer[outIndex+3*2+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*3]) = hexadecimalByte[(uint8_t)chunk[3]];
+       outputBuffer[outIndex+3*3+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*4]) = hexadecimalByte[(uint8_t)chunk[4]];
+       outputBuffer[outIndex+3*4+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*5]) = hexadecimalByte[(uint8_t)chunk[5]];
+       outputBuffer[outIndex+3*5+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*6]) = hexadecimalByte[(uint8_t)chunk[6]];
+       outputBuffer[outIndex+3*6+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*7]) = hexadecimalByte[(uint8_t)chunk[7]];
+       outputBuffer[outIndex+3*7+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*8]) = hexadecimalByte[(uint8_t)chunk[8]];
+       outputBuffer[outIndex+3*8+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*9]) = hexadecimalByte[(uint8_t)chunk[9]];
+       outputBuffer[outIndex+3*9+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*10]) = hexadecimalByte[(uint8_t)chunk[10]];
+       outputBuffer[outIndex+3*10+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*11]) = hexadecimalByte[(uint8_t)chunk[11]];
+       outputBuffer[outIndex+3*11+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*12]) = hexadecimalByte[(uint8_t)chunk[12]];
+       outputBuffer[outIndex+3*12+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*13]) = hexadecimalByte[(uint8_t)chunk[13]];
+       outputBuffer[outIndex+3*13+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*14]) = hexadecimalByte[(uint8_t)chunk[14]];
+       outputBuffer[outIndex+3*14+2] = ' ';
+       *((HEXA_BYTE *)&outputBuffer[outIndex+3*15]) = hexadecimalByte[(uint8_t)chunk[15]];
+       outputBuffer[outIndex+3*15+2] = ' ';
+       outIndex = outIndex + CHUNK_SIZE * 3;
+    }
+    else {
+      // encode chunk
+      for(int index = 0; index < length; ++index) {
+        *((HEXA_BYTE *)&outputBuffer[outIndex]) = hexadecimalByte[(uint8_t)chunk[index]];
+        outIndex = outIndex + 2;
         outputBuffer[outIndex++] = ' ';
+      } 
+      // pad last chunk
+      if(length < CHUNK_SIZE) {
+        int padBytes = (CHUNK_SIZE - length) * 3;
+        for(int index = 0; index < padBytes; ++index) {
+          outputBuffer[outIndex++] = ' ';
+        }
       }
     }
 
