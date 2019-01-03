@@ -24,10 +24,11 @@ chunkSize :: Int64
 chunkSize = 16
 
 chunked :: Int64 -> ByteString -> [Chunk]
-chunked !offset bs = if BSL.null bs
+chunked offset bs = if BSL.null bs
   then [Chunk offset bs]
   else case BSL.splitAt chunkSize bs of
-    (as, zs) -> Chunk offset as : chunked (offset + BSL.length as) zs
+    (as, zs) -> Chunk offset as : (let offset' = offset + BSL.length as in 
+                                   offset' `seq` zs `seq` chunked offset' zs )
 
 filterPrintable :: Word8 -> Word8
 filterPrintable x | x >= 0x20 && x <= 0x7e = x
@@ -42,13 +43,13 @@ hexEncodeLowerNibble x =
     charLetterOffset = fromIntegral $ fromEnum 'a' - 0xa
 
 buildOffset :: Int64 -> Builder
-buildOffset !offset = buildOffset' (offset >>> 24#)
+buildOffset offset = buildOffset' (offset >>> 24#)
   <> (B.int8HexFixed $ fromIntegral $ (offset >>> 16#))
   <> (B.int16HexFixed $ fromIntegral offset)
   where 
     (I64# n) >>> i = I64# (uncheckedIShiftRL# n i)
     buildOffset' !offset
-      | offset /= 0 = buildOffset' (offset >>> 4#) <> B.word8 (hexEncodeLowerNibble offset)
+      | offset /= 0 = (buildOffset' $! (offset >>> 4#)) <> (B.word8 $! (hexEncodeLowerNibble offset))
       | otherwise = mempty
 
 hex :: ByteString -> Builder
