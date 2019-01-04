@@ -1,7 +1,5 @@
 package hexdump;
 
-// license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE-MIT
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
@@ -37,25 +35,37 @@ public class HexDump {
 				new FileInputStream(filename) : System.in);
 				BufferedOutputStream writer = new BufferedOutputStream(System.out)) {
 			while(true) {
-				int outIndex = 0;
 				int length = reader.read(chunk);
 				// encode offset
 				long offsetEncode = offset;
-				for(int index = 0; index < 6 || offsetEncode != 0; ++index ) {
-					outputBuffer[outIndex++] = hexadecimal[(int)offsetEncode & 0xF];
-					offsetEncode = offsetEncode >>> 4;
+				int startIndex = 16;
+				int outIndex = startIndex;
+				
+				{
+					int index = (int)(offsetEncode << 1) & 0x1FE;
+					outputBuffer[--startIndex] = hexadecimalByte[index+1];
+					outputBuffer[--startIndex] = hexadecimalByte[index];
 				}
-				// reverse
-				for(int index = 0; index < outIndex/2; ++index){
-					int index2 = outIndex - index - 1;
-					byte val = outputBuffer[index];
-					outputBuffer[index] = outputBuffer[index2];
-					outputBuffer[index2] = val;					
+				{
+					int index = (int)(offsetEncode >> 7) & 0x1FE;
+					outputBuffer[--startIndex] = hexadecimalByte[index+1];
+					outputBuffer[--startIndex] = hexadecimalByte[index];
 				}
+				{
+					int index = (int)(offsetEncode >> 15) & 0x1FE;
+					outputBuffer[--startIndex] = hexadecimalByte[index+1];
+					outputBuffer[--startIndex] = hexadecimalByte[index];
+				}
+			    // encode remainder - stop encoding when remainder is 0 and remember startIndex
+				offsetEncode = (offsetEncode >> 24) & 0xFFFFFFFFFFL;
+			    for(; offsetEncode != 0; ) {
+			       outputBuffer[--startIndex] = hexadecimal[(int)(offsetEncode & 0xF)];
+			       offsetEncode = offsetEncode >> 4;
+			    }				
 				
 				if(length < 0) {
 					outputBuffer[outIndex++] = '\n';
-					System.out.write(outputBuffer, 0, outIndex);
+					System.out.write(outputBuffer, startIndex, outIndex - startIndex);
 					return;
 				}
 				// encode chunk
@@ -81,7 +91,7 @@ public class HexDump {
 				outputBuffer[outIndex++] = '<';
 
 				outputBuffer[outIndex++] = '\n';
-				System.out.write(outputBuffer, 0, outIndex);
+				System.out.write(outputBuffer, startIndex, outIndex - startIndex);
 				offset = offset + length;
 			}
 		}
