@@ -45,11 +45,17 @@ setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024
 getFilename :: IO (Maybe String)
 getFilename = fmap listToMaybe E.getArgs
 
-hexDigit :: (Integral a, Bits a) => a -> Word8
+hexDigit :: Word8 -> Word8
 hexDigit !x = {-# SCC "hexDigit" #-}
-  let nibble = ((fromIntegral x) :: Word8) .&. 0xF in
-  if nibble < 0xa then (nibble + 0x30) else (nibble + 0x57)
+  encodeNibble (x .&. 0xF)
 {-# INLINE hexDigit #-}
+
+encodeNibble :: Word8 -> Word8
+encodeNibble !nibble 
+--if nibble < 0xa then (nibble + 0x30) else (nibble + 0x57)
+  | nibble < 0xa =  {-# SCC "encodeNibble" #-}  nibble + 0x30
+  | otherwise =  {-# SCC "encodeNibble" #-}  nibble + 0x57
+{-# INLINE encodeNibble #-}
 
 encodeOffset :: Word64 -> Ptr Word8 -> Int -> IO Int
 encodeOffset offset buffer len = {-# SCC "encodeOffset" #-} do
@@ -60,7 +66,7 @@ encodeOffset offset buffer len = {-# SCC "encodeOffset" #-} do
 encodeOffset' :: Word64 -> Ptr Word8 -> Int -> Int -> IO ()
 encodeOffset' !offset !buffer !index !decodeNibbles
   | decodeNibbles > 0 = do
-    Buf.pokeByteOff buffer index (hexDigit offset)
+    Buf.pokeByteOff buffer index (hexDigit $ fromIntegral offset)
     encodeOffset' (offset >>> 4#) buffer (index - 1) (decodeNibbles - 1)
   | otherwise = do
     return ()
@@ -111,8 +117,8 @@ encodeByte :: ByteString -> Int -> Int -> Ptr Word8 -> Int -> IO Int
 encodeByte as !index !asLength buffer !len
   | index < asLength = {-# SCC "encodeByte" #-} do
      let oneByte = BSL.index as (fromIntegral index)
-     Buf.pokeByteOff buffer len (hexDigit (oneByte >>>| 4#) :: Word8)
-     Buf.pokeByteOff buffer (len+1) (hexDigit oneByte :: Word8)
+     Buf.pokeByteOff buffer len (hexDigit (oneByte >>>| 4#))
+     Buf.pokeByteOff buffer (len+1) (hexDigit oneByte)
      Buf.pokeByteOff buffer (len+2) (0x20 :: Word8)
      encodeByte as (index + 1) asLength buffer (len + 3)
   | otherwise = {-# SCC "encodeByte" #-} return len
