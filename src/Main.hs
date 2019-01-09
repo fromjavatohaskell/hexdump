@@ -2,103 +2,137 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
 
+
 -- license MIT https://raw.githubusercontent.com/fromjavatohaskell/hexdump/master/LICENSE-MIT
 
 import           GHC.Int                        ( Int64(..) )
-import           Data.Bits                      ( (.&.) )
-import           GHC.Prim                       ( uncheckedIShiftRL# )
+import           GHC.Word                       ( Word64(..), Word8(..) )
+import           Data.Bits                      ( Bits(..), (.&.) )
+import           GHC.Prim                       ( Int#, uncheckedShiftRL#, clz64# )
 import           Data.ByteString.Lazy           ( ByteString )
-import           Data.ByteString.Builder        ( Builder )
-import           Data.Word                      ( Word8 )
 import           Data.Maybe                     ( listToMaybe )
-import           Data.Foldable                  ( traverse_ )
 import qualified System.Environment            as E
 import qualified Data.ByteString.Lazy          as BSL
-import qualified Data.ByteString.Builder       as B
 import           System.IO                      ( BufferMode(..) )
 import qualified System.IO                     as IO
+import qualified GHC.IO.Buffer                 as Buf
+import           Foreign.Ptr                   ( Ptr ) 
+import qualified Foreign.Storable              as Buf
 
-data Chunk = Chunk Int64 ByteString
 
-chunkSize :: Int64
+chunkSize :: Int
 chunkSize = 16
 
-chunked :: Int64 -> ByteString -> [Chunk]
-chunked offset bs = {-# SCC "chunked" #-} if BSL.null bs
-  then [Chunk offset bs]
-  else case BSL.splitAt chunkSize bs of
-    (as, zs) -> Chunk offset as : (let offset' = offset + BSL.length as in 
-                                   offset' `seq` zs `seq` chunked offset' zs )
+chunkSize64 :: Int64
+chunkSize64 = fromIntegral chunkSize
+
+(>>>) :: Word64 -> Int# -> Word64
+(W64# n) >>> i = W64# (uncheckedShiftRL# n i)
+
+(>>>|) :: Word8 -> Int# -> Word8
+(W8# n) >>>| i = W8# (uncheckedShiftRL# n i)
+
+clz :: Word64 -> Word64
+clz (W64# n) = W64# (clz64# n)
+
+getData :: Maybe String -> IO ByteString
+getData (Just filename) = BSL.readFile filename
+getData Nothing = BSL.getContents
+
+setupOutputBuffering :: IO ()
+setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 64
+
+getFilename :: IO (Maybe String)
+getFilename = fmap listToMaybe E.getArgs
+
+hexDigit :: (Integral a, Bits a) => a -> Word8
+hexDigit !x = {-# SCC "hexDigit" #-}
+  let nibble = ((fromIntegral x) :: Word8) .&. 0xF in
+  if nibble < 0xa then (nibble + 0x30) else (nibble + 0x57)
+{-# INLINE hexDigit #-}
+
+encodeOffset :: Word64 -> Ptr Word8 -> Int -> IO Int
+encodeOffset offset buffer len = {-# SCC "encodeOffset" #-} do
+  let decodeNibbles = max 6 (16 - (fromIntegral ((clz offset) >>> 2#))) :: Int
+  encodeOffset' offset buffer (len + decodeNibbles - 1) decodeNibbles
+  return $! len + decodeNibbles
+
+encodeOffset' :: Word64 -> Ptr Word8 -> Int -> Int -> IO ()
+encodeOffset' !offset !buffer !index !decodeNibbles
+  | decodeNibbles > 0 = do
+    Buf.pokeByteOff buffer index (hexDigit offset)
+    encodeOffset' (offset >>> 4#) buffer (index - 1) (decodeNibbles - 1)
+  | otherwise = do
+    return ()
+
+
+writeBuffer :: Ptr Word8 -> Int -> IO ()
+writeBuffer buffer len = {-# SCC "writeBuffer" #-} do
+  Buf.pokeByteOff buffer len (0x0a :: Word8)
+  IO.hPutBuf IO.stdout buffer (len + 1)
+
+
+encode :: Word64 -> ByteString -> Ptr Word8 -> IO ()
+encode offset inData buffer
+  | BSL.null inData = {-# SCC "encode" #-} do
+     len <- encodeOffset offset buffer 0
+     writeBuffer buffer len
+  | otherwise = {-# SCC "encode" #-} do
+     let (as, zs) = BSL.splitAt chunkSize64 inData
+     let chunkLength = (fromIntegral $ BSL.length as) :: Int
+     len <- encodeOffset offset buffer 0
+     Buf.pokeByteOff buffer len (0x20 :: Word8)
+     let len2 = len + 1
+     len3 <- encodeByte as 0 chunkLength buffer len2
+
+     len4 <- if chunkLength < chunkSize then pad 0 (3 * (chunkSize - chunkLength)) buffer len3
+        else return len3
+     
+     Buf.pokeByteOff buffer len4 (0x20 :: Word8)
+     let len5 = len4 + 1
+     Buf.pokeByteOff buffer len5 (0x3e :: Word8)
+     let len6 = len5 + 1
+
+     len7 <- encodeAscii as 0 chunkLength buffer len6
+     Buf.pokeByteOff buffer len7 (0x3c :: Word8)
+     let len8 = len7 + 1
+     writeBuffer buffer len8
+     encode (offset + fromIntegral chunkLength) zs buffer
+
+
+pad :: Int -> Int -> Ptr Word8 -> Int -> IO Int
+pad !bytesToPad !totalBytesToPad buffer !len
+  | bytesToPad < totalBytesToPad = {-# SCC "pad" #-} do 
+    Buf.pokeByteOff buffer len (0x20 :: Word8)
+    pad (bytesToPad + 1) totalBytesToPad buffer (len + 1)
+  | otherwise = {-# SCC "pad" #-} return len
+
+encodeByte :: ByteString -> Int -> Int -> Ptr Word8 -> Int -> IO Int
+encodeByte as !index !asLength buffer !len
+  | index < asLength = {-# SCC "encodeByte" #-} do
+     let oneByte = BSL.index as (fromIntegral index)
+     Buf.pokeByteOff buffer len (hexDigit (oneByte >>>| 4#) :: Word8)
+     Buf.pokeByteOff buffer (len+1) (hexDigit oneByte :: Word8)
+     Buf.pokeByteOff buffer (len+2) (0x20 :: Word8)
+     encodeByte as (index + 1) asLength buffer (len + 3)
+  | otherwise = {-# SCC "encodeByte" #-} return len
 
 filterPrintable :: Word8 -> Word8
 filterPrintable x | x >= 0x20 && x <= 0x7e = x
                   | otherwise              = 0x2e
 
-hexEncodeLowerNibble :: Int64 -> Word8
-hexEncodeLowerNibble x = {-# SCC "hexEncode" #-}
-  let nibble = fromIntegral $ x .&. 0xF in
-  if nibble < 0xa then (charNumberOffset + nibble) else (charLetterOffset + nibble)
-  where
-    charNumberOffset = fromIntegral $ fromEnum '0'
-    charLetterOffset = fromIntegral $ fromEnum 'a' - 0xa
-
-buildOffset :: Int64 -> Builder
-buildOffset offset = {-# SCC "buildOffset" #-} buildOffset' (offset >>> 24#)
-  <> (B.int8HexFixed $ fromIntegral $ (offset >>> 16#))
-  <> (B.int16HexFixed $ fromIntegral offset)
-  where 
-    (I64# n) >>> i = I64# (uncheckedIShiftRL# n i)
-    buildOffset' !offset
-      | offset /= 0 = (buildOffset' $! (offset >>> 4#)) <> (B.word8 $! (hexEncodeLowerNibble offset))
-      | otherwise = mempty
-
-hex :: ByteString -> Builder
-hex chunk = {-# SCC "hexChunk" #-} BSL.foldr singleSymbol mempty chunk
-  where singleSymbol x rest = B.word8HexFixed x <> space <> rest
-
-pad :: Int64 -> Builder
-pad chunkLength
-  | chunkLength >= chunkSize = mempty
-  | otherwise = mconcat $ replicate padSize space
-     where padSize = fromIntegral $ 3 * (chunkSize - chunkLength)
-
-buildChunk :: ByteString -> Builder
-buildChunk chunk
-  | not $ BSL.null chunk
-  = {-# SCC "buildChunk" #-} space
-    <> hex chunk
-    <> pad (BSL.length chunk)
-    <> space
-    <> charBiggerThen
-    <> B.lazyByteString (BSL.map filterPrintable chunk)
-    <> charLessThen
-  | otherwise
-  = mempty
-
-charBiggerThen :: Builder
-charBiggerThen = B.char8 '>'
-
-charLessThen :: Builder
-charLessThen = B.char8 '<'
-
-space :: Builder
-space = B.char8 ' '
-
-newLine :: Builder
-newLine = B.char8 '\n'
-
-toBuilder :: Chunk -> Builder
-toBuilder (Chunk offset chunk) = {-# SCC "toBuilder" #-} buildOffset offset <> buildChunk chunk <> newLine
-
-getData :: Maybe String -> IO ByteString
-getData (Just filename) = {-# SCC "getData" #-} BSL.readFile filename
-getData Nothing = {-# SCC "getData" #-} BSL.getContents
-
-printHex :: ByteString -> IO ()
-printHex dataIn = {-# SCC "printHex" #-} traverse_ (B.hPutBuilder IO.stdout . toBuilder) (chunked 0 dataIn)
+encodeAscii :: ByteString -> Int -> Int -> Ptr Word8 -> Int -> IO Int
+encodeAscii as !index !asLength buffer !len
+  | index < asLength = {-# SCC "encodeAscii" #-} do
+    let oneByte = BSL.index as (fromIntegral index)
+    Buf.pokeByteOff buffer len $ filterPrintable oneByte
+    encodeAscii as (index + 1) asLength buffer (len + 1)
+  | otherwise = {-# SCC "encodeAscii" #-} return len
 
 main :: IO ()
-main = setupOutputBuffering >> getFilename >>= getData >>= printHex
-  where
-    setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 64
-    getFilename = fmap listToMaybe E.getArgs
+main = do
+  setupOutputBuffering
+  inData <- getFilename >>= getData
+  buf <- Buf.newByteBuffer 1024 Buf.WriteBuffer
+  Buf.withBuffer buf $ encode 0 inData
+
