@@ -17,7 +17,11 @@ import           System.IO                      ( BufferMode(..) )
 import qualified System.IO                     as IO
 import qualified GHC.IO.Buffer                 as Buf
 import           Foreign.Ptr                   ( Ptr ) 
+import           Foreign                   ( ForeignPtr ) 
 import qualified Foreign.Storable              as Buf
+import           Foreign.ForeignPtr.Unsafe     ( unsafeForeignPtrToPtr )
+import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Internal as BS
 
 {-
 -- | Simple for loop.  Counts from /start/ to /end/-1.
@@ -28,6 +32,17 @@ for n0 !n f = loop n0
            | otherwise = f i >> loop (i+1)
 {-# INLINE for #-}
 -}
+
+
+{-# NOINLINE table #-}
+table :: ForeignPtr Word8
+table =
+   case BS.pack [0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x61,0x62,0x63,0x64,0x65,0x66] 
+     of BS.PS fp _ _ -> fp
+
+{-# INLINE tableHex #-}
+tableHex :: Int -> IO Word8
+tableHex !index = Buf.peekByteOff (unsafeForeignPtrToPtr table) index
 
 chunkSize :: Int
 chunkSize = 16
@@ -58,7 +73,8 @@ hexDigit :: Word8 -> IO Word8
 --hexDigit !x = {-# SCC "hexDigit" #-} do
 hexDigit !x = do
   let nibble = x .&. 0xF
-  return $! if nibble < 0xa then (nibble + 0x30) else (nibble + 0x57)
+--  return $! if nibble < 0xa then (nibble + 0x30) else (nibble + 0x57)
+  tableHex $ fromIntegral nibble
 {-# INLINE hexDigit #-}
 
 encodeOffset :: Word64 -> Ptr Word8 -> Int -> IO Int
