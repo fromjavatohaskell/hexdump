@@ -70,10 +70,8 @@ getFilename :: IO (Maybe String)
 getFilename = fmap listToMaybe E.getArgs
 
 hexDigit :: Word8 -> IO Word8
---hexDigit !x = {-# SCC "hexDigit" #-} do
 hexDigit !x = do
   let nibble = x .&. 0xF
---  return $! if nibble < 0xa then (nibble + 0x30) else (nibble + 0x57)
   tableHex $ fromIntegral nibble
 {-# INLINE hexDigit #-}
 
@@ -96,7 +94,7 @@ encodeOffset' !offset !buffer !index !decodeNibbles
 
 
 writeBuffer :: Ptr Word8 -> Int -> IO ()
-writeBuffer buffer len = {-# SCC "writeBuffer" #-} do
+writeBuffer buffer len = do
   Buf.pokeByteOff buffer len (0x0a :: Word8)
   IO.hPutBuf IO.stdout buffer (len + 1)
 
@@ -138,7 +136,7 @@ pad !bytesToPad !totalBytesToPad buffer !len
 
 
 encodeByte :: ByteString -> Int -> Ptr Word8 -> Int -> IO Int
-encodeByte as chunkLength buffer len = {-# SCC "encodeByte" #-} encodeByte' as 0 chunkLength buffer len
+encodeByte as chunkLength buffer len = encodeByte' as 0 chunkLength buffer len
 
 encodeByte' :: ByteString -> Int -> Int -> Ptr Word8 -> Int -> IO Int
 encodeByte' as !index !asLength buffer !len
@@ -153,19 +151,31 @@ encodeByte' as !index !asLength buffer !len
   | otherwise = return len
 {-# INLINE encodeByte' #-}
 
-filterPrintable :: Word8 -> IO Word8
-filterPrintable x = do
-  return $! if (x >= 0x20 && x <= 0x7e) then x else 0x2e
-{-# INLINE filterPrintable #-}
+filterPrintable :: Int -> Word8
+filterPrintable x = if (x >= 0x20 && x <= 0x7e) then (fromIntegral x) else 0x2e
+
+{-# NOINLINE tableAscii #-}
+tableAscii :: ForeignPtr Word8
+tableAscii =
+   case BS.pack $ fmap filterPrintable [0..255]
+     of BS.PS fp _ _ -> fp
+
+{-# INLINE tableConvertAscii #-}
+tableConvertAscii :: Int -> IO Word8
+tableConvertAscii !index = Buf.peekByteOff (unsafeForeignPtrToPtr tableAscii) index
+
+
+
 
 encodeAscii :: ByteString -> Int -> Ptr Word8 -> Int -> IO Int
-encodeAscii as chunkLength buffer len = {-# SCC "encodeAscii" #-} encodeAscii' as 0 chunkLength buffer len 
+encodeAscii as chunkLength buffer len = encodeAscii' as 0 chunkLength buffer len 
+{-# INLINE encodeAscii #-}
 
 encodeAscii' :: ByteString -> Int -> Int -> Ptr Word8 -> Int -> IO Int
 encodeAscii' as !index !asLength buffer !len
   | index < asLength = do
     let oneByte = BSL.index as (fromIntegral index)
-    !filteredAscii <- filterPrintable oneByte
+    !filteredAscii <- tableConvertAscii $ fromIntegral oneByte
     Buf.pokeByteOff buffer len filteredAscii
     encodeAscii' as (index + 1) asLength buffer (len + 1)
   | otherwise = return len
@@ -176,5 +186,5 @@ main = do
   setupOutputBuffering
   inData <- getFilename >>= getData
   buf <- Buf.newByteBuffer 1024 Buf.WriteBuffer
-  Buf.withBuffer buf $ {-# SCC "encode" #-} encode 0 inData
+  Buf.withBuffer buf $ encode 0 inData
 
