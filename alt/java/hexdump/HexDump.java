@@ -7,91 +7,101 @@ import java.io.IOException;
 
 public class HexDump {
 
-	private static void hexdump(String filename) {
-
-		final int CHUNK_SIZE = 16;
-		long offset = 0;
-		byte[] chunk = new byte[CHUNK_SIZE];
-		// buffer one line
-		byte[] outputBuffer = new byte[1024];
-		
-		byte[] hexadecimal = {'0','1','2','3','4','5','6','7','8','9',
-			'a','b','c','d','e','f'
-		};
-		
-		final int MAX_BYTE = 256;
-		byte[] hexadecimalByte = new byte[MAX_BYTE*2];
+	static final int CHUNK_SIZE = 16;
+	static final byte[] hexadecimal = {'0','1','2','3','4','5','6','7','8','9', 'a','b','c','d','e','f'};
+	static final int MAX_BYTE = 256;
+	static final byte[] hexadecimalByte = new byte[MAX_BYTE*2];
+	static final byte[] asciiFilter = new byte[MAX_BYTE];
+	static {
 		for(int index = 0; index < MAX_BYTE; ++index) {
 			hexadecimalByte[index * 2 + 1] = hexadecimal[index & 0xF];
 			hexadecimalByte[index * 2] = hexadecimal[(index >>> 4) & 0xF];
 		}
-		
-		byte[] asciiFilter = new byte[MAX_BYTE];
+
 		for(int index = 0; index < MAX_BYTE; ++index) {
 			asciiFilter[index] = index >= 0x20 && index <= 0x7e ? (byte)index : (byte)'.';
 		}
+	}
+
+	private static class  Offset {
+		int start;
+		int end;
+	}
+	
+	private static void transform(long offset, int length, byte []chunk, byte []buffer, Offset bufferOffset) {
+		// encode offset
+		long offsetEncode = offset;
+		int startIndex = 16;
+		int outIndex = startIndex;
+		
+		{
+			int index = (int)(offsetEncode << 1) & 0x1FE;
+			buffer[--startIndex] = hexadecimalByte[index+1];
+			buffer[--startIndex] = hexadecimalByte[index];
+		}
+		{
+			int index = (int)(offsetEncode >> 7) & 0x1FE;
+			buffer[--startIndex] = hexadecimalByte[index+1];
+			buffer[--startIndex] = hexadecimalByte[index];
+		}
+		{
+			int index = (int)(offsetEncode >> 15) & 0x1FE;
+			buffer[--startIndex] = hexadecimalByte[index+1];
+			buffer[--startIndex] = hexadecimalByte[index];
+		}
+	    // encode remainder - stop encoding when remainder is 0 and remember startIndex
+		offsetEncode = (offsetEncode >> 24) & 0xFFFFFFFFFFL;
+	    for(; offsetEncode != 0; ) {
+	       buffer[--startIndex] = hexadecimal[(int)(offsetEncode & 0xF)];
+	       offsetEncode = offsetEncode >> 4;
+	    }				
+		if(length > 0) {
+			// encode chunk
+			buffer[outIndex++] = ' ';
+			for(int index = 0; index < length; ++index) {
+				int hexIndex = (chunk[index] & 0xFF) << 1; 
+				buffer[outIndex++] = hexadecimalByte[hexIndex++];
+				buffer[outIndex++] = hexadecimalByte[hexIndex];
+				buffer[outIndex++] = ' ';
+			}
+			if(length < CHUNK_SIZE) {
+				// pad hex
+				int padBytes = (CHUNK_SIZE - length) * 3;
+				for(int index = 0; index < padBytes; ++index) {
+					buffer[outIndex++] = ' ';
+				}
+			}
+			buffer[outIndex++] = ' ';
+			buffer[outIndex++] = '>';
+			for(int index = 0; index < length; ++index) {
+				buffer[outIndex++] = asciiFilter[chunk[index] & 0xFF];
+			}
+			buffer[outIndex++] = '<';
+		}
+		buffer[outIndex++] = '\n';
+		bufferOffset.start = startIndex;
+		bufferOffset.end = outIndex;
+	}
+	
+	
+	private static void hexdump(String filename) {
+
+		long offset = 0;
+		byte[] chunk = new byte[CHUNK_SIZE];
+		// buffer one line
+		byte[] outputBuffer = new byte[1024];
+		Offset outputOffset = new Offset();
 		
 		try (BufferedInputStream reader = new BufferedInputStream(filename != null ?
 				new FileInputStream(filename) : System.in);
 				BufferedOutputStream writer = new BufferedOutputStream(System.out)) {
-			while(true) {
+			
+			boolean lastChunk = false;
+			while(!lastChunk) {
 				int length = reader.read(chunk);
-				// encode offset
-				long offsetEncode = offset;
-				int startIndex = 16;
-				int outIndex = startIndex;
-				
-				{
-					int index = (int)(offsetEncode << 1) & 0x1FE;
-					outputBuffer[--startIndex] = hexadecimalByte[index+1];
-					outputBuffer[--startIndex] = hexadecimalByte[index];
-				}
-				{
-					int index = (int)(offsetEncode >> 7) & 0x1FE;
-					outputBuffer[--startIndex] = hexadecimalByte[index+1];
-					outputBuffer[--startIndex] = hexadecimalByte[index];
-				}
-				{
-					int index = (int)(offsetEncode >> 15) & 0x1FE;
-					outputBuffer[--startIndex] = hexadecimalByte[index+1];
-					outputBuffer[--startIndex] = hexadecimalByte[index];
-				}
-			    // encode remainder - stop encoding when remainder is 0 and remember startIndex
-				offsetEncode = (offsetEncode >> 24) & 0xFFFFFFFFFFL;
-			    for(; offsetEncode != 0; ) {
-			       outputBuffer[--startIndex] = hexadecimal[(int)(offsetEncode & 0xF)];
-			       offsetEncode = offsetEncode >> 4;
-			    }				
-				
-				if(length < 0) {
-					outputBuffer[outIndex++] = '\n';
-					System.out.write(outputBuffer, startIndex, outIndex - startIndex);
-					return;
-				}
-				// encode chunk
-				outputBuffer[outIndex++] = ' ';
-				for(int index = 0; index < length; ++index) {
-					int hexIndex = (chunk[index] & 0xFF) << 1; 
-					outputBuffer[outIndex++] = hexadecimalByte[hexIndex++];
-					outputBuffer[outIndex++] = hexadecimalByte[hexIndex];
-					outputBuffer[outIndex++] = ' ';
-				}
-				if(length < CHUNK_SIZE) {
-					// pad hex
-					int padBytes = (CHUNK_SIZE - length) * 3;
-					for(int index = 0; index < padBytes; ++index) {
-						outputBuffer[outIndex++] = ' ';
-					}
-				}
-				outputBuffer[outIndex++] = ' ';
-				outputBuffer[outIndex++] = '>';
-				for(int index = 0; index < length; ++index) {
-					outputBuffer[outIndex++] = asciiFilter[chunk[index] & 0xFF];
-				}
-				outputBuffer[outIndex++] = '<';
-
-				outputBuffer[outIndex++] = '\n';
-				System.out.write(outputBuffer, startIndex, outIndex - startIndex);
+				lastChunk = length < 0;
+				transform(offset, length, chunk, outputBuffer, outputOffset);
+				System.out.write(outputBuffer, outputOffset.start, outputOffset.end - outputOffset.start);
 				offset = offset + length;
 			}
 		}
