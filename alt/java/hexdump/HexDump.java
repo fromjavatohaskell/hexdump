@@ -33,26 +33,30 @@ public class HexDump {
 		long offsetEncode = offset;
 		int startIndex = 16;
 		int outIndex = startIndex;
+
+		byte[] hex = hexadecimal;
+		byte[] hexByte = hexadecimalByte;
+		byte[] ascFltr = asciiFilter;
 		
 		{
 			int index = (int)(offsetEncode << 1) & 0x1FE;
-			buffer[--startIndex] = hexadecimalByte[index+1];
-			buffer[--startIndex] = hexadecimalByte[index];
+			buffer[--startIndex] = hexByte[index+1];
+			buffer[--startIndex] = hexByte[index];
 		}
 		{
 			int index = (int)(offsetEncode >> 7) & 0x1FE;
-			buffer[--startIndex] = hexadecimalByte[index+1];
-			buffer[--startIndex] = hexadecimalByte[index];
+			buffer[--startIndex] = hexByte[index+1];
+			buffer[--startIndex] = hexByte[index];
 		}
 		{
 			int index = (int)(offsetEncode >> 15) & 0x1FE;
-			buffer[--startIndex] = hexadecimalByte[index+1];
-			buffer[--startIndex] = hexadecimalByte[index];
+			buffer[--startIndex] = hexByte[index+1];
+			buffer[--startIndex] = hexByte[index];
 		}
 	    // encode remainder - stop encoding when remainder is 0 and remember startIndex
 		offsetEncode = (offsetEncode >> 24) & 0xFFFFFFFFFFL;
 	    for(; offsetEncode != 0; ) {
-	       buffer[--startIndex] = hexadecimal[(int)(offsetEncode & 0xF)];
+	       buffer[--startIndex] = hex[(int)(offsetEncode & 0xF)];
 	       offsetEncode = offsetEncode >> 4;
 	    }				
 		if(length > 0) {
@@ -60,8 +64,8 @@ public class HexDump {
 			buffer[outIndex++] = ' ';
 			for(int index = 0; index < length; ++index) {
 				int hexIndex = (chunk[index] & 0xFF) << 1; 
-				buffer[outIndex++] = hexadecimalByte[hexIndex++];
-				buffer[outIndex++] = hexadecimalByte[hexIndex];
+				buffer[outIndex++] = hexByte[hexIndex++];
+				buffer[outIndex++] = hexByte[hexIndex];
 				buffer[outIndex++] = ' ';
 			}
 			if(length < CHUNK_SIZE) {
@@ -74,7 +78,7 @@ public class HexDump {
 			buffer[outIndex++] = ' ';
 			buffer[outIndex++] = '>';
 			for(int index = 0; index < length; ++index) {
-				buffer[outIndex++] = asciiFilter[chunk[index] & 0xFF];
+				buffer[outIndex++] = ascFltr[chunk[index] & 0xFF];
 			}
 			buffer[outIndex++] = '<';
 		}
@@ -95,13 +99,12 @@ public class HexDump {
 		try (BufferedInputStream reader = new BufferedInputStream(filename != null ?
 				new FileInputStream(filename) : System.in);
 				BufferedOutputStream writer = new BufferedOutputStream(System.out)) {
-			
 			boolean lastChunk = false;
 			while(!lastChunk) {
 				int length = reader.read(chunk);
 				lastChunk = length < 0;
 				transform(offset, length, chunk, outputBuffer, outputOffset);
-				System.out.write(outputBuffer, outputOffset.start, outputOffset.end - outputOffset.start);
+				writer.write(outputBuffer, outputOffset.start, outputOffset.end - outputOffset.start);
 				offset = offset + length;
 			}
 		}
