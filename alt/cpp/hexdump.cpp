@@ -25,22 +25,35 @@ void init_tables() {
   }
 }
 
-void transform(long offset, int length, const char *chunk, char *buffer, int *start, int *end) {
+const int MIN_HEX_NUMBERS {6};
 
-  // encode offset
-  const int endOffset {16};
+int countHexDigits(unsigned long offset) {
+  // return number of hex digits
+  // return 6 in case if number requires less than 6 digits to encode
+  if(offset == 0) {
+    return MIN_HEX_NUMBERS;
+  }
+  int hexDigits = 16 - (__builtin_clzl(offset) >> 2);
+  return hexDigits < MIN_HEX_NUMBERS ? MIN_HEX_NUMBERS : hexDigits;
+}
+
+void transform(unsigned long offset, int length, const char *chunk, char *buffer, int *bufferLength) {
+
+  // encode offset - calculate how many digits we need to encode
+  const int endOffset {countHexDigits(offset)};
   int outIndex {endOffset};
 
-  // encode LSB 3 bytes
+  // encode LSB 3 bytes - 6 hex numbers
   const int nibbleMask {0xFF};
   *((HEXA_BYTE *)&buffer[endOffset - 2]) = hexadecimalByte[offset & nibbleMask];
   *((HEXA_BYTE *)&buffer[endOffset - 4]) = hexadecimalByte[(offset >> 8) & nibbleMask];
   *((HEXA_BYTE *)&buffer[endOffset - 6]) = hexadecimalByte[(offset >> 16) & nibbleMask];
 
-  // encode remainder - stop encoding when remainder is 0 and remember startIndex
-  int startIndex {endOffset - 6};
-  long offsetEncode {(offset >> 24) & 0xFFFFFFFFFFL};
-  for(int index {0}; offsetEncode != 0; ++index ) {
+  // encode remainder - stop encoding when startIndex reaches 0 - that means that
+  // offsetEncode has guaranteed to reach 0
+  int startIndex {endOffset - MIN_HEX_NUMBERS};
+  unsigned long offsetEncode {(offset >> 24) & 0xFFFFFFFFFFL};
+  for(int index {0}; startIndex > 0; ++index ) {
     buffer[--startIndex] = hexadecimal[(int)(offsetEncode & 0xF)];
     offsetEncode = offsetEncode >> 4;
   }
@@ -110,8 +123,7 @@ void transform(long offset, int length, const char *chunk, char *buffer, int *st
 
   buffer[outIndex++] = '\n';
 
-  *start = startIndex;
-  *end = outIndex;
+  *bufferLength = outIndex;
 }
 
 int main(int argc, char *argv[]) {
@@ -128,7 +140,7 @@ int main(int argc, char *argv[]) {
   char chunk[CHUNK_SIZE];
   char buffer[1024];
 
-  long offset = 0;
+  unsigned long offset = 0;
   bool last_chunk = false;
   while(!last_chunk) {
 
@@ -136,11 +148,10 @@ int main(int argc, char *argv[]) {
     int length = in.gcount();
     last_chunk = (length == 0 && !in);
 
-    int startIndex;
-    int outIndex;
-    transform(offset, length, chunk, buffer, &startIndex, &outIndex);
+    int bufferLength;
+    transform(offset, length, chunk, buffer, &bufferLength);
 
-    std::cout.write(buffer + startIndex, outIndex - startIndex);
+    std::cout.write(buffer, bufferLength);
     offset = offset + length;
   }
 
