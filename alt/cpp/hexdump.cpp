@@ -29,12 +29,8 @@ const int MIN_HEX_NUMBERS {6};
 
 int countHexDigits(unsigned long offset) {
   // return number of hex digits
-  // return 6 in case if number requires less than 6 digits to encode
-  if(offset == 0) {
-    return MIN_HEX_NUMBERS;
-  }
-  int hexDigits = 16 - (__builtin_clzl(offset) >> 2);
-  return hexDigits < MIN_HEX_NUMBERS ? MIN_HEX_NUMBERS : hexDigits;
+  // we set lower bits to guaratee that function would return at least 6
+  return 16 - (__builtin_clzl(offset | 0xFFFFFFL) >> 2);
 }
 
 void transform(unsigned long offset, int length, const char *chunk, char *buffer, int *bufferLength) {
