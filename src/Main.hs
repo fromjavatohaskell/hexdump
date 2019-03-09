@@ -139,17 +139,17 @@ encodeByte :: ByteString -> Int -> Ptr Word8 -> Int -> IO Int
 encodeByte as chunkLength buffer len = encodeByte' as 0 chunkLength buffer len
 
 encodeByte' :: ByteString -> Int -> Int -> Ptr Word8 -> Int -> IO Int
-encodeByte' as !index !asLength buffer !len
+encodeByte' as !index asLength buffer !len
   | index < asLength = do
      let oneByte = BSL.index as (fromIntegral index)
-     !hexTemp1 <- hexDigit $! (oneByte >>>| 4#)
-     !hexTemp2 <- hexDigit oneByte
+     hexTemp1 <- hexDigit (oneByte >>>| 4#)
+     hexTemp2 <- hexDigit oneByte
      Buf.pokeByteOff buffer len hexTemp1
      Buf.pokeByteOff buffer (len+1) hexTemp2
      Buf.pokeByteOff buffer (len+2) (0x20 :: Word8)
      encodeByte' as (index + 1) asLength buffer (len + 3)
   | otherwise = return len
-{-# INLINE encodeByte' #-}
+-- {-# INLINE encodeByte' #-}
 
 filterPrintable :: Int -> Word8
 filterPrintable x = if (x >= 0x20 && x <= 0x7e) then (fromIntegral x) else 0x2e
