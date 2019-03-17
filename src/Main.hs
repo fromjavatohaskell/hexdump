@@ -93,26 +93,19 @@ encodeOffset' !offset !buffer !index !decodeNibbles
 {-# INLINE encodeOffset' #-}
 
 
-writeBuffer :: Ptr Word8 -> Int -> IO ()
-writeBuffer buffer len = do
-  Buf.pokeByteOff buffer len (0x0a :: Word8)
-  IO.hPutBuf IO.stdout buffer (len + 1)
-
-
-encode :: Word64 -> ByteString -> Ptr Word8 -> IO ()
-encode offset inData buffer
+encode :: Word64 -> ByteString -> Int -> Ptr Word8 -> IO (Int)
+encode offset inData chunkLength buffer
   | BSL.null inData = do
      len <- encodeOffset offset buffer 0
-     writeBuffer buffer len
+     Buf.pokeByteOff buffer len (0x0a :: Word8)
+     return (len + 1)
   | otherwise = do
-     let (as, zs) = BSL.splitAt chunkSize64 inData
-     let chunkLength = (fromIntegral $ BSL.length as) :: Int
      len <- encodeOffset offset buffer 0
      Buf.pokeByteOff buffer len (0x20 :: Word8)
      let len2 = len + 1
-     len3 <- encodeByte as chunkLength buffer len2
+     len3 <- encodeByte 0 len2
 
-     len4 <- if chunkLength < chunkSize then pad 0 (3 * (chunkSize - chunkLength)) buffer len3
+     len4 <- if chunkLength < chunkSize then pad 0 (3 * (chunkSize - chunkLength)) len3
         else return len3
      
      Buf.pokeByteOff buffer len4 (0x20 :: Word8)
@@ -120,36 +113,48 @@ encode offset inData buffer
      Buf.pokeByteOff buffer len5 (0x3e :: Word8)
      let len6 = len5 + 1
 
-     len7 <- encodeAscii as chunkLength buffer len6
+     len7 <- encodeAscii 0 len6
      Buf.pokeByteOff buffer len7 (0x3c :: Word8)
      let len8 = len7 + 1
-     writeBuffer buffer len8
-     encode (offset + fromIntegral chunkLength) zs buffer
-
-
-pad :: Int -> Int -> Ptr Word8 -> Int -> IO Int
-pad !bytesToPad !totalBytesToPad buffer !len
-  | bytesToPad < totalBytesToPad = do 
-    Buf.pokeByteOff buffer len (0x20 :: Word8)
-    pad (bytesToPad + 1) totalBytesToPad buffer (len + 1)
-  | otherwise = return len
-
-
-encodeByte :: ByteString -> Int -> Ptr Word8 -> Int -> IO Int
-encodeByte as chunkLength buffer len = encodeByte' as 0 chunkLength buffer len
-
-encodeByte' :: ByteString -> Int -> Int -> Ptr Word8 -> Int -> IO Int
-encodeByte' as !index asLength buffer !len
-  | index < asLength = do
-     let oneByte = BSL.index as (fromIntegral index)
+     Buf.pokeByteOff buffer len8 (0x0a :: Word8)
+     let len9 = len8 + 1
+     return len9
+  where
+ encodeByte !index !len
+  | index < chunkLength = do
+     let oneByte = BSL.index inData (fromIntegral index)
      hexTemp1 <- hexDigit (oneByte >>>| 4#)
      hexTemp2 <- hexDigit oneByte
      Buf.pokeByteOff buffer len hexTemp1
      Buf.pokeByteOff buffer (len+1) hexTemp2
      Buf.pokeByteOff buffer (len+2) (0x20 :: Word8)
-     encodeByte' as (index + 1) asLength buffer (len + 3)
+     encodeByte (index + 1) (len + 3)
   | otherwise = return len
--- {-# INLINE encodeByte' #-}
+ encodeAscii !index !len
+  | index < chunkLength = do
+    let oneByte = BSL.index inData (fromIntegral index)
+    filteredAscii <- tableConvertAscii $ fromIntegral oneByte
+    Buf.pokeByteOff buffer len filteredAscii
+    encodeAscii (index + 1) (len + 1)
+  | otherwise = return len
+ pad !bytesToPad totalBytesToPad !len
+  | bytesToPad < totalBytesToPad = do
+    Buf.pokeByteOff buffer len (0x20 :: Word8)
+    pad (bytesToPad + 1) totalBytesToPad (len + 1)
+  | otherwise = return len
+{-# NOINLINE encode #-}
+
+encodeStream :: Word64 -> ByteString -> Ptr Word8 -> IO ()
+encodeStream offset inData buffer
+  | BSL.null inData = do
+     len <- encode offset inData 0 buffer
+     IO.hPutBuf IO.stdout buffer len
+  | otherwise = do
+     let (as, zs) = BSL.splitAt chunkSize64 inData
+     let chunkLength = (fromIntegral $ BSL.length as) :: Int
+     len <- encode offset as chunkLength buffer
+     IO.hPutBuf IO.stdout buffer len
+     encodeStream (offset + fromIntegral chunkLength) zs buffer
 
 filterPrintable :: Int -> Word8
 filterPrintable x = if (x >= 0x20 && x <= 0x7e) then (fromIntegral x) else 0x2e
@@ -165,26 +170,10 @@ tableConvertAscii :: Int -> IO Word8
 tableConvertAscii !index = Buf.peekByteOff (unsafeForeignPtrToPtr tableAscii) index
 
 
-
-
-encodeAscii :: ByteString -> Int -> Ptr Word8 -> Int -> IO Int
-encodeAscii as chunkLength buffer len = encodeAscii' as 0 chunkLength buffer len 
-{-# INLINE encodeAscii #-}
-
-encodeAscii' :: ByteString -> Int -> Int -> Ptr Word8 -> Int -> IO Int
-encodeAscii' as !index !asLength buffer !len
-  | index < asLength = do
-    let oneByte = BSL.index as (fromIntegral index)
-    !filteredAscii <- tableConvertAscii $ fromIntegral oneByte
-    Buf.pokeByteOff buffer len filteredAscii
-    encodeAscii' as (index + 1) asLength buffer (len + 1)
-  | otherwise = return len
-{-# INLINE encodeAscii' #-}
-
 main :: IO ()
 main = do
   setupOutputBuffering
   inData <- getFilename >>= getData
   buf <- Buf.newByteBuffer 1024 Buf.WriteBuffer
-  Buf.withBuffer buf $ encode 0 inData
+  Buf.withBuffer buf $ encodeStream 0 inData
 
