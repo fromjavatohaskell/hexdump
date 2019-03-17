@@ -23,17 +23,6 @@ import           Foreign.ForeignPtr.Unsafe     ( unsafeForeignPtrToPtr )
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Internal as BS
 
-{-
--- | Simple for loop.  Counts from /start/ to /end/-1.
-for :: Monad m => Int -> Int -> (Int -> m ()) -> m ()
-for n0 !n f = loop n0
-  where
-    loop i | i == n    = return ()
-           | otherwise = f i >> loop (i+1)
-{-# INLINE for #-}
--}
-
-
 {-# NOINLINE table #-}
 table :: ForeignPtr Word8
 table =
@@ -59,12 +48,9 @@ chunkSize64 = fromIntegral chunkSize
 clz :: Word64 -> Word64
 clz (W64# n) = W64# (clz64# n)
 
-getData :: Maybe String -> IO ByteString
-getData (Just filename) = BSL.readFile filename
-getData Nothing = BSL.getContents
-
-setupOutputBuffering :: IO ()
-setupOutputBuffering = IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 64
+getHandle :: Maybe String -> IO IO.Handle
+getHandle (Just filename) = IO.openFile filename IO.ReadMode
+getHandle Nothing = return IO.stdin
 
 getFilename :: IO (Maybe String)
 getFilename = fmap listToMaybe E.getArgs
@@ -172,8 +158,10 @@ tableConvertAscii !index = Buf.peekByteOff (unsafeForeignPtrToPtr tableAscii) in
 
 main :: IO ()
 main = do
-  setupOutputBuffering
-  inData <- getFilename >>= getData
+  h <- getFilename >>= getHandle
+  IO.hSetBuffering IO.stdout $ BlockBuffering $ Just $ 1024 * 64
+  IO.hSetBuffering h $ BlockBuffering $ Just $ 1024 * 64
+  inData <- BSL.hGetContents h
   buf <- Buf.newByteBuffer 1024 Buf.WriteBuffer
   Buf.withBuffer buf $ encodeStream 0 inData
 
