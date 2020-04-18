@@ -22,9 +22,7 @@ executable hexdump
   main-is: Main.hs
   hs-source-dirs:
       src
-  ghc-options: -threaded -rtsopts -O2 -Wall -Wextra -prof -fforce-recomp -ddump-simpl -dsuppress-all -dno-suppress-type-signatures -ddump-asm -ddump-cmm
---  ghc-options: -threaded -rtsopts -O2 -Wall -Wextra -fforce-recomp
---  ghc-options: -threaded -rtsopts -O2 -Wall -Wextra -fforce-recomp -ticky -dverbose-core2core -ddump-stg
+  ghc-options: -threaded -rtsopts -O2 -Wall -Wextra
   build-depends:
       base, bytestring, ghc-prim
   default-language: Haskell2010

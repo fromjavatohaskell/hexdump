@@ -1,17 +1,10 @@
 #!/bin/sh
 echo test
-/home/ubuntu/tt69/hexdump/.stack-work/dist/x86_64-linux/Cabal-2.2.0.1/build/hexdump/hexdump d1.bin | md5sum
+./dist/build/hexdump/hexdump d1.bin | md5sum
 echo 7d80d50d57ff09ac698899f76a078b5a "<--" should be
-time /home/ubuntu/tt69/hexdump/.stack-work/dist/x86_64-linux/Cabal-2.2.0.1/build/hexdump/hexdump d1.bin >/dev/null
-
-#/home/ubuntu/tt69/hexdump/.stack-work/dist/x86_64-linux/Cabal-2.2.0.1/build/hexdump/hexdump d1.bin 
-
-#/home/ubuntu/tt69/hexdump/.stack-work/dist/x86_64-linux/Cabal-2.2.0.1/build/hexdump/hexdump +RTS -p -RTS d1.bin >/dev/null
-#/home/ubuntu/tt69/hexdump/.stack-work/dist/x86_64-linux/Cabal-2.2.0.1/build/hexdump/hexdump +RTS -rhexdump.ticky -RTS d1.bin >/dev/null
-
-
+time ./dist/build/hexdump/hexdump d1.bin >/dev/null
 
 #time /home/ubuntu/tt69/hexdump/.stack-work/dist/x86_64-linux/Cabal-2.2.0.1/build/hexdump/hexdump d1.bin | wc
-# 91.6MBytes per second
+# 200MBytes per second
 # output bytes 1103374297
-# time 11.48
+# time 5.25
