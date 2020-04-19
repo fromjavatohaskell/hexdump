@@ -18,11 +18,17 @@ source-repository head
   type: git
   location: https://github.com/fromjavatohaskell/hexdump
 
+library
+  exposed-modules:     Hexdump.Encode
+  other-modules:
+  hs-source-dirs: src
+  ghc-options: -O2 -Wall -Wextra
+  build-depends:       base, bytestring, ghc-prim
+  default-language: Haskell2010
+
 executable hexdump
   main-is: Main.hs
-  hs-source-dirs:
-      src
+  hs-source-dirs: app
   ghc-options: -threaded -rtsopts -O2 -Wall -Wextra
-  build-depends:
-      base, bytestring, ghc-prim
+  build-depends: hexdump, base, bytestring, ghc-prim
   default-language: Haskell2010
